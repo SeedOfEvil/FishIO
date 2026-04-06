@@ -1,5 +1,7 @@
+import { useRef, useEffect, useState, useCallback } from "react";
 import type { FishEntity } from "@/domain/fish/fishTypes";
 import { FISH_SIZE } from "@/domain/constants/tuning";
+import { TICK_INTERVAL_MS } from "@/domain/constants/balance";
 
 interface FishSpriteProps {
 	fish: FishEntity;
@@ -7,10 +9,51 @@ interface FishSpriteProps {
 	onClick: () => void;
 }
 
+/**
+ * Smooth rendering hook — interpolates fish position between ticks using RAF.
+ * Stores prev/target positions and lerps based on elapsed time since last tick.
+ */
+function useSmoothPosition(x: number, y: number) {
+	const prevRef = useRef({ x, y });
+	const targetRef = useRef({ x, y });
+	const tickTimeRef = useRef(Date.now());
+	const rafRef = useRef<number>(0);
+	const [pos, setPos] = useState({ x, y });
+
+	// When the tick updates position, shift target
+	useEffect(() => {
+		prevRef.current = { x: targetRef.current.x, y: targetRef.current.y };
+		targetRef.current = { x, y };
+		tickTimeRef.current = Date.now();
+	}, [x, y]);
+
+	const animate = useCallback(() => {
+		const elapsed = Date.now() - tickTimeRef.current;
+		const t = Math.min(elapsed / TICK_INTERVAL_MS, 1);
+		const smoothT = t * t * (3 - 2 * t); // smoothstep for natural easing
+
+		const ix = prevRef.current.x + (targetRef.current.x - prevRef.current.x) * smoothT;
+		const iy = prevRef.current.y + (targetRef.current.y - prevRef.current.y) * smoothT;
+		setPos({ x: ix, y: iy });
+
+		rafRef.current = requestAnimationFrame(animate);
+	}, []);
+
+	useEffect(() => {
+		rafRef.current = requestAnimationFrame(animate);
+		return () => cancelAnimationFrame(rafRef.current);
+	}, [animate]);
+
+	return pos;
+}
+
 export function FishSprite({ fish, isSelected, onClick }: FishSpriteProps) {
 	const size = FISH_SIZE[fish.ageStage];
 	const hw = size.width / 2;
 	const hh = size.height / 2;
+
+	// Smooth position interpolation between ticks
+	const { x: smoothX, y: smoothY } = useSmoothPosition(fish.x, fish.y);
 
 	const now = Date.now();
 	// Per-fish phase offset so fish don't all bob in unison
@@ -42,7 +85,7 @@ export function FishSprite({ fish, isSelected, onClick }: FishSpriteProps) {
 
 	return (
 		<g
-			transform={`translate(${fish.x}, ${fish.y + bobY}) scale(${fish.facingDirection}, 1) rotate(${swayAngle + pitchAngle * fish.facingDirection})`}
+			transform={`translate(${smoothX}, ${smoothY + bobY}) scale(${fish.facingDirection}, 1) rotate(${swayAngle + pitchAngle * fish.facingDirection})`}
 			onClick={(e) => {
 				e.stopPropagation();
 				onClick();

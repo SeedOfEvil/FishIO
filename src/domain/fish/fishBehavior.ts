@@ -146,7 +146,7 @@ function applyTimedStateBehavior(f: FishEntity, ctx: BehaviorContext): void {
       // Inject micro-drift so idle fish still look alive
       applyIdleDrift(f, phase);
       // Gentle vertical bob
-      f.vy += Math.sin(_behaviorTick * FISH_VERTICAL_DRIFT_SPEED + phase) * 0.002;
+      f.vy += Math.sin(_behaviorTick * FISH_VERTICAL_DRIFT_SPEED + phase) * 0.008;
       break;
     }
 
@@ -155,7 +155,7 @@ function applyTimedStateBehavior(f: FishEntity, ctx: BehaviorContext): void {
       f.vx *= 0.93;
       f.vy *= 0.93;
       // Subtle nibble bob
-      f.vy += Math.sin(_behaviorTick * 0.2 + phase) * 0.004;
+      f.vy += Math.sin(_behaviorTick * 0.2 + phase) * 0.015;
       applyIdleDrift(f, phase);
       break;
     }
@@ -164,21 +164,21 @@ function applyTimedStateBehavior(f: FishEntity, ctx: BehaviorContext): void {
       f.vx *= FISH_HOVER_DAMPING;
       f.vy *= FISH_HOVER_DAMPING;
       // More pronounced vertical bob during hover
-      f.vy += Math.sin(_behaviorTick * 0.08 + phase) * 0.008;
+      f.vy += Math.sin(_behaviorTick * 0.08 + phase) * 0.03;
       // Slight horizontal sway
-      f.vx += Math.sin(_behaviorTick * 0.05 + phase * 1.7) * 0.003;
+      f.vx += Math.sin(_behaviorTick * 0.05 + phase * 1.7) * 0.01;
       break;
     }
 
     case "investigating": {
       // Drift gently in current wander direction
-      const strength = 0.02 * f.personality.curiosity;
+      const strength = 0.06 * f.personality.curiosity;
       f.vx += Math.cos(f.wanderAngle) * strength;
       f.vy += Math.sin(f.wanderAngle) * strength;
       f.vx *= 0.95;
       f.vy *= 0.95;
       // Slowly rotate wander angle for natural investigation arc
-      f.wanderAngle += Math.sin(_behaviorTick * 0.03 + phase) * 0.02;
+      f.wanderAngle += Math.sin(_behaviorTick * 0.03 + phase) * 0.06;
       break;
     }
 
@@ -190,8 +190,8 @@ function applyTimedStateBehavior(f: FishEntity, ctx: BehaviorContext): void {
         f.vy += FISH_NIGHT_SINK_FORCE;
       }
       // Even resting fish breathe — tiny motion
-      f.vy += Math.sin(_behaviorTick * 0.04 + phase) * 0.003;
-      f.vx += Math.sin(_behaviorTick * 0.025 + phase * 2.1) * 0.002;
+      f.vy += Math.sin(_behaviorTick * 0.04 + phase) * 0.01;
+      f.vx += Math.sin(_behaviorTick * 0.025 + phase * 2.1) * 0.008;
       // Wake up if it's no longer night
       if (!ctx.isNight) {
         f.state = "roaming";
