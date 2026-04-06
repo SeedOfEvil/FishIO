@@ -1,4 +1,4 @@
-import type { FishEntity, FoodPellet } from "./fishTypes";
+import type { FishEntity, FishState, FoodPellet } from "./fishTypes";
 import {
   TANK_PADDING,
   TANK_WIDTH,
@@ -9,158 +9,389 @@ import {
   FISH_TURN_SMOOTHING,
   FISH_WALL_AVOIDANCE_DISTANCE,
   FISH_WALL_AVOIDANCE_STRENGTH,
+  FISH_WALL_HARD_REPULSION,
   FISH_SEPARATION_DISTANCE,
   FISH_SEPARATION_STRENGTH,
+  FISH_SOCIABILITY_SEPARATION_FACTOR,
   FISH_FOOD_ATTRACTION_RANGE,
   FISH_FOOD_ATTRACTION_STRENGTH,
-  FISH_NIGHT_SPEED_MULTIPLIER,
+  FISH_FOOD_NOTICE_HUNGER,
+  FISH_EATING_PAUSE_TICKS,
+  FISH_WANDER_STRENGTH,
+  FISH_WANDER_ANGLE_DRIFT,
+  FISH_WANDER_RETARGET_CHANCE,
+  FISH_CRUISE_CHANCE,
+  FISH_CRUISE_DURATION,
+  FISH_HOVER_CHANCE,
+  FISH_HOVER_DURATION,
+  FISH_HOVER_DAMPING,
+  FISH_INVESTIGATE_CHANCE,
+  FISH_INVESTIGATE_DURATION,
   FISH_IDLE_CHANCE,
   FISH_IDLE_DURATION_TICKS,
+  FISH_NIGHT_SPEED_MULTIPLIER,
+  FISH_NIGHT_SINK_FORCE,
+  FISH_NIGHT_SINK_FLOOR_OFFSET,
+  FISH_NIGHT_REST_CHANCE,
+  FISH_NIGHT_HOVER_CHANCE,
+  FISH_REST_DAMPING,
 } from "../constants/tuning";
 
-interface BehaviorContext {
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
+
+export interface BehaviorContext {
   allFish: FishEntity[];
   foodPellets: FoodPellet[];
   isNight: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Main update
+// ---------------------------------------------------------------------------
+
 export function updateFishBehavior(
   fish: FishEntity,
   ctx: BehaviorContext,
 ): FishEntity {
-  const updated = { ...fish };
+  const f = { ...fish };
 
-  // Handle idle state
-  if (updated.state === "idle") {
-    updated.idleTimer -= 1;
-    if (updated.idleTimer <= 0) {
-      updated.state = "roaming";
+  // --- timed-state ticking (eating, idle, hovering, investigating, resting) ---
+  if (isTimedState(f.state)) {
+    f.stateTimer -= 1;
+    if (f.stateTimer <= 0) {
+      f.state = "roaming";
+    } else {
+      applyTimedStateBehavior(f, ctx);
+      applyPosition(f);
+      return f;
     }
-    // Slow down while idle
-    updated.vx *= 0.95;
-    updated.vy *= 0.95;
-    applyPosition(updated);
-    return updated;
   }
 
-  // Handle resting at night
-  if (updated.state === "resting") {
-    updated.vx *= 0.97;
-    updated.vy *= 0.97;
-    // Gently drift toward lower tank
-    if (updated.y < TANK_FLOOR_Y - 80) {
-      updated.vy += 0.01;
-    }
-    if (!ctx.isNight) {
-      updated.state = "roaming";
-    }
-    applyPosition(updated);
-    return updated;
+  // --- decide next state / steering ---
+  decideState(f, ctx);
+  applySteeringForces(f, ctx);
+
+  // --- speed limit ---
+  applySpeedLimit(f, ctx.isNight);
+
+  // --- smooth turning (blend from old velocity) ---
+  f.vx = fish.vx + (f.vx - fish.vx) * FISH_TURN_SMOOTHING;
+  f.vy = fish.vy + (f.vy - fish.vy) * FISH_TURN_SMOOTHING;
+
+  // --- facing direction ---
+  if (Math.abs(f.vx) > 0.01) {
+    f.facingDirection = f.vx > 0 ? 1 : -1;
   }
 
-  // Check for nearby food
-  const nearestFood = findNearestFood(updated, ctx.foodPellets);
-  if (nearestFood && updated.hunger > 30) {
-    updated.state = "seeking_food";
-    const dx = nearestFood.x - updated.x;
-    const dy = nearestFood.y - updated.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > 0) {
-      const attraction = FISH_FOOD_ATTRACTION_STRENGTH * updated.personality.boldness;
-      updated.vx += (dx / dist) * attraction;
-      updated.vy += (dy / dist) * attraction;
-    }
-  } else {
-    updated.state = "roaming";
-  }
-
-  // Night behavior
-  if (ctx.isNight && Math.random() < 0.01) {
-    updated.state = "resting";
-  }
-
-  // Random idle chance
-  if (updated.state === "roaming" && Math.random() < FISH_IDLE_CHANCE) {
-    updated.state = "idle";
-    updated.idleTimer = FISH_IDLE_DURATION_TICKS * (0.5 + Math.random());
-  }
-
-  // Wander force (gentle random nudge)
-  const wanderStrength = 0.03 * updated.personality.energy;
-  updated.vx += (Math.random() - 0.5) * wanderStrength;
-  updated.vy += (Math.random() - 0.5) * wanderStrength * 0.5;
-
-  // Wall avoidance
-  applyWallAvoidance(updated);
-
-  // Fish separation
-  applySeparation(updated, ctx.allFish);
-
-  // Speed limits
-  const speedMultiplier = ctx.isNight ? FISH_NIGHT_SPEED_MULTIPLIER : 1;
-  const maxSpeed = (FISH_BASE_SPEED + FISH_SPEED_VARIATION * updated.personality.energy) * speedMultiplier;
-  const currentSpeed = Math.sqrt(updated.vx * updated.vx + updated.vy * updated.vy);
-  if (currentSpeed > maxSpeed) {
-    updated.vx = (updated.vx / currentSpeed) * maxSpeed;
-    updated.vy = (updated.vy / currentSpeed) * maxSpeed;
-  }
-
-  // Smooth turning
-  updated.vx = fish.vx + (updated.vx - fish.vx) * FISH_TURN_SMOOTHING;
-  updated.vy = fish.vy + (updated.vy - fish.vy) * FISH_TURN_SMOOTHING;
-
-  // Update facing direction
-  if (Math.abs(updated.vx) > 0.01) {
-    updated.facingDirection = updated.vx > 0 ? 1 : -1;
-  }
-
-  applyPosition(updated);
-  return updated;
+  applyPosition(f);
+  return f;
 }
 
-function applyPosition(fish: FishEntity): void {
-  fish.x += fish.vx;
-  fish.y += fish.vy;
+// ---------------------------------------------------------------------------
+// Timed-state helpers
+// ---------------------------------------------------------------------------
 
-  // Clamp to tank bounds
+function isTimedState(state: FishState): boolean {
+  return (
+    state === "idle" ||
+    state === "eating" ||
+    state === "hovering" ||
+    state === "investigating" ||
+    state === "resting"
+  );
+}
+
+function applyTimedStateBehavior(f: FishEntity, ctx: BehaviorContext): void {
+  switch (f.state) {
+    case "idle":
+      f.vx *= 0.94;
+      f.vy *= 0.94;
+      break;
+
+    case "eating":
+      // Very slow drift while munching
+      f.vx *= 0.90;
+      f.vy *= 0.90;
+      break;
+
+    case "hovering":
+      f.vx *= FISH_HOVER_DAMPING;
+      f.vy *= FISH_HOVER_DAMPING;
+      // Tiny vertical bob
+      f.vy += Math.sin(f.stateTimer * 0.15) * 0.003;
+      break;
+
+    case "investigating": {
+      // Drift gently in current wander direction
+      const strength = 0.015 * f.personality.curiosity;
+      f.vx += Math.cos(f.wanderAngle) * strength;
+      f.vy += Math.sin(f.wanderAngle) * strength;
+      f.vx *= 0.95;
+      f.vy *= 0.95;
+      break;
+    }
+
+    case "resting":
+      f.vx *= FISH_REST_DAMPING;
+      f.vy *= FISH_REST_DAMPING;
+      // Drift toward lower tank
+      if (f.y < TANK_FLOOR_Y - FISH_NIGHT_SINK_FLOOR_OFFSET) {
+        f.vy += FISH_NIGHT_SINK_FORCE;
+      }
+      // Wake up if it's no longer night
+      if (!ctx.isNight) {
+        f.state = "roaming";
+        f.stateTimer = 0;
+      }
+      break;
+  }
+
+  // Wall avoidance still applies during timed states
+  applyWallAvoidance(f);
+  applySeparation(f, ctx.allFish);
+
+  // Update facing
+  if (Math.abs(f.vx) > 0.01) {
+    f.facingDirection = f.vx > 0 ? 1 : -1;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// State decision
+// ---------------------------------------------------------------------------
+
+export function decideState(f: FishEntity, ctx: BehaviorContext): void {
+  // Priority 1: food seeking (hunger-driven)
+  const nearestFood = findNearestFood(f, ctx.foodPellets);
+  if (nearestFood && f.hunger > FISH_FOOD_NOTICE_HUNGER) {
+    // Interest scales with hunger and boldness
+    const interest = (f.hunger / 100) * (0.4 + 0.6 * f.personality.boldness);
+    if (interest > 0.2) {
+      f.state = "seeking_food";
+      return;
+    }
+  }
+
+  // If currently seeking food but nothing available, go back to roaming
+  if (f.state === "seeking_food") {
+    f.state = "roaming";
+  }
+
+  // Priority 2: night transitions
+  if (ctx.isNight) {
+    if (Math.random() < FISH_NIGHT_REST_CHANCE) {
+      enterState(f, "resting", FISH_IDLE_DURATION_TICKS * (0.8 + Math.random() * 0.4));
+      return;
+    }
+    if (Math.random() < FISH_NIGHT_HOVER_CHANCE) {
+      enterState(f, "hovering", FISH_HOVER_DURATION * (0.5 + Math.random()));
+      return;
+    }
+  }
+
+  // Priority 3: spontaneous state changes while roaming
+  if (f.state === "roaming") {
+    // Investigate (curiosity-driven)
+    if (Math.random() < FISH_INVESTIGATE_CHANCE * f.personality.curiosity) {
+      enterState(f, "investigating", FISH_INVESTIGATE_DURATION * (0.5 + Math.random()));
+      f.wanderAngle = Math.random() * Math.PI * 2;
+      return;
+    }
+    // Hover
+    if (Math.random() < FISH_HOVER_CHANCE * (1 - f.personality.energy * 0.5)) {
+      enterState(f, "hovering", FISH_HOVER_DURATION * (0.5 + Math.random()));
+      return;
+    }
+    // Idle
+    if (Math.random() < FISH_IDLE_CHANCE * (1 - f.personality.energy * 0.5)) {
+      enterState(f, "idle", FISH_IDLE_DURATION_TICKS * (0.5 + Math.random()));
+      return;
+    }
+    // Cruise — pick a direction and swim straight for a while
+    if (Math.random() < FISH_CRUISE_CHANCE * f.personality.energy) {
+      f.wanderAngle = Math.atan2(f.vy, f.vx) + (Math.random() - 0.5) * 0.3;
+      f.stateTimer = FISH_CRUISE_DURATION * (0.5 + Math.random());
+      // Stay in "roaming" but the stateTimer > 0 suppresses retargeting
+    }
+  }
+}
+
+function enterState(f: FishEntity, state: FishState, duration: number): void {
+  f.state = state;
+  f.stateTimer = Math.round(duration);
+}
+
+// ---------------------------------------------------------------------------
+// Steering forces (applied only to non-timed states: roaming, seeking_food)
+// ---------------------------------------------------------------------------
+
+function applySteeringForces(f: FishEntity, ctx: BehaviorContext): void {
+  // Food attraction
+  if (f.state === "seeking_food") {
+    applyFoodAttraction(f, ctx.foodPellets);
+  }
+
+  // Wander
+  if (f.state === "roaming") {
+    applyWander(f, ctx.isNight);
+  }
+
+  // Night: gentle downward drift
+  if (ctx.isNight && f.y < TANK_FLOOR_Y - FISH_NIGHT_SINK_FLOOR_OFFSET) {
+    f.vy += FISH_NIGHT_SINK_FORCE * 0.5;
+  }
+
+  // Wall avoidance
+  applyWallAvoidance(f);
+
+  // Neighbor separation
+  applySeparation(f, ctx.allFish);
+}
+
+// ---------------------------------------------------------------------------
+// Wandering — smooth, direction-based
+// ---------------------------------------------------------------------------
+
+function applyWander(f: FishEntity, isNight: boolean): void {
+  // Drift the wander angle gently
+  f.wanderAngle += (Math.random() - 0.5) * FISH_WANDER_ANGLE_DRIFT;
+
+  // Occasionally pick a completely new direction
+  if (f.stateTimer <= 0 && Math.random() < FISH_WANDER_RETARGET_CHANCE) {
+    f.wanderAngle = Math.random() * Math.PI * 2;
+  }
+
+  // Decrease cruise timer if active
+  if (f.stateTimer > 0) {
+    f.stateTimer -= 1;
+  }
+
+  const strength = FISH_WANDER_STRENGTH * f.personality.energy * (isNight ? 0.5 : 1);
+  f.vx += Math.cos(f.wanderAngle) * strength;
+  f.vy += Math.sin(f.wanderAngle) * strength * 0.6; // fish swim more horizontally
+}
+
+// ---------------------------------------------------------------------------
+// Food attraction
+// ---------------------------------------------------------------------------
+
+function applyFoodAttraction(f: FishEntity, pellets: FoodPellet[]): void {
+  const target = findNearestFood(f, pellets);
+  if (!target) return;
+
+  const dx = target.x - f.x;
+  const dy = target.y - f.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist <= 0) return;
+
+  // Attraction strength scales with boldness and hunger urgency
+  const urgency = 0.5 + 0.5 * (f.hunger / 100);
+  const attraction = FISH_FOOD_ATTRACTION_STRENGTH * f.personality.boldness * urgency;
+  f.vx += (dx / dist) * attraction;
+  f.vy += (dy / dist) * attraction;
+}
+
+// ---------------------------------------------------------------------------
+// Wall avoidance — soft gradient + hard repulsion near edges
+// ---------------------------------------------------------------------------
+
+export function applyWallAvoidance(f: FishEntity): void {
+  const dist = FISH_WALL_AVOIDANCE_DISTANCE;
+  const halfDist = dist * 0.5;
+
+  const leftEdge = TANK_PADDING;
+  const rightEdge = TANK_WIDTH - TANK_PADDING;
+  const topEdge = WATER_SURFACE_Y;
+  const bottomEdge = TANK_FLOOR_Y;
+
+  const dLeft = f.x - leftEdge;
+  const dRight = rightEdge - f.x;
+  const dTop = f.y - topEdge;
+  const dBottom = bottomEdge - f.y;
+
+  // Soft avoidance
+  if (dLeft < dist) {
+    const t = 1 - dLeft / dist;
+    f.vx += FISH_WALL_AVOIDANCE_STRENGTH * t;
+    if (dLeft < halfDist) f.vx += FISH_WALL_HARD_REPULSION * (1 - dLeft / halfDist);
+  }
+  if (dRight < dist) {
+    const t = 1 - dRight / dist;
+    f.vx -= FISH_WALL_AVOIDANCE_STRENGTH * t;
+    if (dRight < halfDist) f.vx -= FISH_WALL_HARD_REPULSION * (1 - dRight / halfDist);
+  }
+  if (dTop < dist) {
+    const t = 1 - dTop / dist;
+    f.vy += FISH_WALL_AVOIDANCE_STRENGTH * t;
+    if (dTop < halfDist) f.vy += FISH_WALL_HARD_REPULSION * (1 - dTop / halfDist);
+  }
+  if (dBottom < dist) {
+    const t = 1 - dBottom / dist;
+    f.vy -= FISH_WALL_AVOIDANCE_STRENGTH * t;
+    if (dBottom < halfDist) f.vy -= FISH_WALL_HARD_REPULSION * (1 - dBottom / halfDist);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fish-to-fish separation — sociability reduces force
+// ---------------------------------------------------------------------------
+
+export function applySeparation(f: FishEntity, allFish: FishEntity[]): void {
+  for (const other of allFish) {
+    if (other.id === f.id) continue;
+    const dx = f.x - other.x;
+    const dy = f.y - other.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < FISH_SEPARATION_DISTANCE && dist > 0) {
+      // Social fish tolerate closer proximity
+      const socFactor = 1 - f.personality.sociability * FISH_SOCIABILITY_SEPARATION_FACTOR;
+      const force = FISH_SEPARATION_STRENGTH * (1 - dist / FISH_SEPARATION_DISTANCE) * socFactor;
+      f.vx += (dx / dist) * force;
+      f.vy += (dy / dist) * force;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Speed limiting
+// ---------------------------------------------------------------------------
+
+function applySpeedLimit(f: FishEntity, isNight: boolean): void {
+  const nightMul = isNight ? FISH_NIGHT_SPEED_MULTIPLIER : 1;
+  const maxSpeed = (FISH_BASE_SPEED + FISH_SPEED_VARIATION * f.personality.energy) * nightMul;
+  const currentSpeed = Math.sqrt(f.vx * f.vx + f.vy * f.vy);
+  if (currentSpeed > maxSpeed) {
+    f.vx = (f.vx / currentSpeed) * maxSpeed;
+    f.vy = (f.vy / currentSpeed) * maxSpeed;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Position application + clamping
+// ---------------------------------------------------------------------------
+
+function applyPosition(f: FishEntity): void {
+  f.x += f.vx;
+  f.y += f.vy;
+
   const minX = TANK_PADDING + 20;
   const maxX = TANK_WIDTH - TANK_PADDING - 20;
   const minY = WATER_SURFACE_Y + 20;
   const maxY = TANK_FLOOR_Y - 20;
 
-  if (fish.x < minX) { fish.x = minX; fish.vx = Math.abs(fish.vx) * 0.5; }
-  if (fish.x > maxX) { fish.x = maxX; fish.vx = -Math.abs(fish.vx) * 0.5; }
-  if (fish.y < minY) { fish.y = minY; fish.vy = Math.abs(fish.vy) * 0.5; }
-  if (fish.y > maxY) { fish.y = maxY; fish.vy = -Math.abs(fish.vy) * 0.5; }
+  if (f.x < minX) { f.x = minX; f.vx = Math.abs(f.vx) * 0.3; }
+  if (f.x > maxX) { f.x = maxX; f.vx = -Math.abs(f.vx) * 0.3; }
+  if (f.y < minY) { f.y = minY; f.vy = Math.abs(f.vy) * 0.3; }
+  if (f.y > maxY) { f.y = maxY; f.vy = -Math.abs(f.vy) * 0.3; }
 }
 
-function applyWallAvoidance(fish: FishEntity): void {
-  const minX = TANK_PADDING + FISH_WALL_AVOIDANCE_DISTANCE;
-  const maxX = TANK_WIDTH - TANK_PADDING - FISH_WALL_AVOIDANCE_DISTANCE;
-  const minY = WATER_SURFACE_Y + FISH_WALL_AVOIDANCE_DISTANCE;
-  const maxY = TANK_FLOOR_Y - FISH_WALL_AVOIDANCE_DISTANCE;
+// ---------------------------------------------------------------------------
+// Food finding
+// ---------------------------------------------------------------------------
 
-  if (fish.x < minX) fish.vx += FISH_WALL_AVOIDANCE_STRENGTH * (1 - fish.x / minX);
-  if (fish.x > maxX) fish.vx -= FISH_WALL_AVOIDANCE_STRENGTH * ((fish.x - maxX) / (TANK_WIDTH - maxX));
-  if (fish.y < minY) fish.vy += FISH_WALL_AVOIDANCE_STRENGTH * (1 - fish.y / minY);
-  if (fish.y > maxY) fish.vy -= FISH_WALL_AVOIDANCE_STRENGTH * ((fish.y - maxY) / (TANK_FLOOR_Y - maxY));
-}
-
-function applySeparation(fish: FishEntity, allFish: FishEntity[]): void {
-  for (const other of allFish) {
-    if (other.id === fish.id) continue;
-    const dx = fish.x - other.x;
-    const dy = fish.y - other.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < FISH_SEPARATION_DISTANCE && dist > 0) {
-      const force = FISH_SEPARATION_STRENGTH * (1 - dist / FISH_SEPARATION_DISTANCE);
-      fish.vx += (dx / dist) * force;
-      fish.vy += (dy / dist) * force;
-    }
-  }
-}
-
-function findNearestFood(fish: FishEntity, pellets: FoodPellet[]): FoodPellet | null {
+export function findNearestFood(fish: FishEntity, pellets: FoodPellet[]): FoodPellet | null {
   let nearest: FoodPellet | null = null;
   let nearestDist = FISH_FOOD_ATTRACTION_RANGE;
 
@@ -182,4 +413,13 @@ export function canEatFood(fish: FishEntity, pellet: FoodPellet): boolean {
   const dx = fish.x - pellet.x;
   const dy = fish.y - pellet.y;
   return Math.sqrt(dx * dx + dy * dy) < 15;
+}
+
+/** Enter the eating pause state after consuming food */
+export function startEatingPause(fish: FishEntity): FishEntity {
+  return {
+    ...fish,
+    state: "eating" as const,
+    stateTimer: FISH_EATING_PAUSE_TICKS,
+  };
 }

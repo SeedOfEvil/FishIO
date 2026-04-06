@@ -1,6 +1,14 @@
 export type Sex = "male" | "female";
 export type AgeStage = "fry" | "juvenile" | "adult";
-export type FishState = "roaming" | "eating" | "resting" | "idle" | "seeking_food";
+export type FishState =
+  | "roaming"
+  | "eating"
+  | "resting"
+  | "idle"
+  | "seeking_food"
+  | "investigating"
+  | "hovering"
+  | "avoiding";
 
 export interface PersonalityTraits {
   /** 0-1: how active/fast the fish moves */
@@ -11,6 +19,8 @@ export interface PersonalityTraits {
   boldness: number;
   /** 0-1: how hungry it gets (multiplier on hunger rate) */
   appetite: number;
+  /** 0-1: how curious (investigates surroundings, changes direction) */
+  curiosity: number;
 }
 
 export interface FishEntity {
@@ -43,8 +53,11 @@ export interface FishEntity {
   /** Current behavioral state */
   state: FishState;
 
-  /** Ticks remaining in idle state */
-  idleTimer: number;
+  /** Ticks remaining in current timed state (idle, hovering, investigating, eating) */
+  stateTimer: number;
+
+  /** Current wander target angle in radians — drives smooth cruising direction */
+  wanderAngle: number;
 
   /** Color hue for this fish (degrees, goldfish range) */
   colorHue: number;
