@@ -1,4 +1,5 @@
 import type { FishEntity } from "./fishTypes";
+import { FISH_EATING_PAUSE_TICKS } from "../constants/tuning";
 import {
   HUNGER_RATE_PER_TICK,
   HUNGER_DANGER_THRESHOLD,
@@ -47,6 +48,7 @@ export function feedFish(fish: FishEntity): FishEntity {
     hunger: Math.max(0, fish.hunger - FOOD_HUNGER_RESTORE),
     happiness: Math.min(100, fish.happiness + HAPPINESS_FEED_BOOST),
     state: "eating" as const,
+    stateTimer: FISH_EATING_PAUSE_TICKS,
   };
 }
 

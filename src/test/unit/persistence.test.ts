@@ -53,7 +53,7 @@ describe("persistence", () => {
 		const state = useGameStore.getState().getSaveableState();
 		const json = exportSave(state);
 		const parsed = JSON.parse(json);
-		expect(parsed.version).toBe(1);
+		expect(parsed.version).toBe(2);
 		expect(parsed.state.fish.length).toBeGreaterThan(0);
 	});
 

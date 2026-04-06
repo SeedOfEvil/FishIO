@@ -16,6 +16,7 @@ function randomPersonality(): PersonalityTraits {
     sociability: 0.2 + Math.random() * 0.6,
     boldness: 0.2 + Math.random() * 0.6,
     appetite: 0.7 + Math.random() * 0.3,
+    curiosity: 0.2 + Math.random() * 0.6,
   };
 }
 
@@ -51,7 +52,8 @@ export function createFish(overrides?: Partial<FishEntity>): FishEntity {
     vy: (Math.random() - 0.5) * 0.2,
     facingDirection: Math.random() > 0.5 ? 1 : -1,
     state: "roaming",
-    idleTimer: 0,
+    stateTimer: 0,
+    wanderAngle: Math.random() * Math.PI * 2,
     colorHue: randomGoldfishHue(),
     breedCooldownUntil: 0,
     ...overrides,
