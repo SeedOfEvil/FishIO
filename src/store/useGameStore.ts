@@ -3,7 +3,7 @@ import type { FishEntity, FoodPellet } from "@/domain/fish/fishTypes";
 import type { TankState } from "@/domain/tank/tankTypes";
 import type { Egg } from "@/domain/fish/fishBreeding";
 import { createFish, createFoodPellet } from "@/domain/fish/fishFactory";
-import { updateFishBehavior, canEatFood } from "@/domain/fish/fishBehavior";
+import { updateFishBehavior, canEatFood, advanceBehaviorTick } from "@/domain/fish/fishBehavior";
 import { tickFishNeeds, feedFish } from "@/domain/fish/fishNeeds";
 import { tickTankState, cleanSpot } from "@/domain/tank/tankRules";
 import { isNightTime } from "@/domain/tank/lighting";
@@ -94,6 +94,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     const hour = getCurrentHour();
     const minute = getCurrentMinute();
     const isNight = isNightTime(hour);
+
+    // Advance behavior tick for deterministic oscillations
+    advanceBehaviorTick();
 
     // Update tank
     let tank = tickTankState({ ...state.tank, isNight, currentHour: hour });
