@@ -7,9 +7,11 @@ import {
   FISH_BASE_SPEED,
   FISH_SPEED_VARIATION,
   FISH_TURN_SMOOTHING,
+  FISH_MIN_SPEED,
   FISH_WALL_AVOIDANCE_DISTANCE,
   FISH_WALL_AVOIDANCE_STRENGTH,
   FISH_WALL_HARD_REPULSION,
+  FISH_WALL_APPROACH_MULTIPLIER,
   FISH_SEPARATION_DISTANCE,
   FISH_SEPARATION_STRENGTH,
   FISH_SOCIABILITY_SEPARATION_FACTOR,
@@ -22,6 +24,8 @@ import {
   FISH_WANDER_RETARGET_CHANCE,
   FISH_CRUISE_CHANCE,
   FISH_CRUISE_DURATION,
+  FISH_VERTICAL_DRIFT_STRENGTH,
+  FISH_VERTICAL_DRIFT_SPEED,
   FISH_HOVER_CHANCE,
   FISH_HOVER_DURATION,
   FISH_HOVER_DAMPING,
@@ -29,6 +33,8 @@ import {
   FISH_INVESTIGATE_DURATION,
   FISH_IDLE_CHANCE,
   FISH_IDLE_DURATION_TICKS,
+  FISH_IDLE_DRIFT_STRENGTH,
+  FISH_IDLE_DRIFT_CHANCE,
   FISH_NIGHT_SPEED_MULTIPLIER,
   FISH_NIGHT_SINK_FORCE,
   FISH_NIGHT_SINK_FLOOR_OFFSET,
@@ -48,6 +54,27 @@ export interface BehaviorContext {
 }
 
 // ---------------------------------------------------------------------------
+// Internal tick counter for deterministic oscillations
+// ---------------------------------------------------------------------------
+
+let _behaviorTick = 0;
+
+/** Advance the global behavior tick. Called once per game tick. */
+export function advanceBehaviorTick(): void {
+  _behaviorTick++;
+}
+
+/** Get current behavior tick (for testing). */
+export function getBehaviorTick(): number {
+  return _behaviorTick;
+}
+
+/** Reset tick counter (for testing). */
+export function resetBehaviorTick(): void {
+  _behaviorTick = 0;
+}
+
+// ---------------------------------------------------------------------------
 // Main update
 // ---------------------------------------------------------------------------
 
@@ -64,6 +91,8 @@ export function updateFishBehavior(
       f.state = "roaming";
     } else {
       applyTimedStateBehavior(f, ctx);
+      // Speed limit still applies during timed states
+      applySpeedLimit(f, ctx.isNight);
       applyPosition(f);
       return f;
     }
@@ -79,6 +108,9 @@ export function updateFishBehavior(
   // --- smooth turning (blend from old velocity) ---
   f.vx = fish.vx + (f.vx - fish.vx) * FISH_TURN_SMOOTHING;
   f.vy = fish.vy + (f.vy - fish.vy) * FISH_TURN_SMOOTHING;
+
+  // --- minimum speed enforcement (always gently alive) ---
+  applyMinimumDrift(f);
 
   // --- facing direction ---
   if (Math.abs(f.vx) > 0.01) {
@@ -104,57 +136,112 @@ function isTimedState(state: FishState): boolean {
 }
 
 function applyTimedStateBehavior(f: FishEntity, ctx: BehaviorContext): void {
+  // Use a per-fish phase offset based on position hash for organic variation
+  const phase = (f.x * 7.3 + f.y * 13.1) % (Math.PI * 2);
+
   switch (f.state) {
-    case "idle":
-      f.vx *= 0.94;
-      f.vy *= 0.94;
+    case "idle": {
+      f.vx *= 0.96;
+      f.vy *= 0.96;
+      // Inject micro-drift so idle fish still look alive
+      applyIdleDrift(f, phase);
+      // Gentle vertical bob
+      f.vy += Math.sin(_behaviorTick * FISH_VERTICAL_DRIFT_SPEED + phase) * 0.002;
       break;
+    }
 
-    case "eating":
-      // Very slow drift while munching
-      f.vx *= 0.90;
-      f.vy *= 0.90;
+    case "eating": {
+      // Slow drift while munching — but not frozen
+      f.vx *= 0.93;
+      f.vy *= 0.93;
+      // Subtle nibble bob
+      f.vy += Math.sin(_behaviorTick * 0.2 + phase) * 0.004;
+      applyIdleDrift(f, phase);
       break;
+    }
 
-    case "hovering":
+    case "hovering": {
       f.vx *= FISH_HOVER_DAMPING;
       f.vy *= FISH_HOVER_DAMPING;
-      // Tiny vertical bob
-      f.vy += Math.sin(f.stateTimer * 0.15) * 0.003;
+      // More pronounced vertical bob during hover
+      f.vy += Math.sin(_behaviorTick * 0.08 + phase) * 0.008;
+      // Slight horizontal sway
+      f.vx += Math.sin(_behaviorTick * 0.05 + phase * 1.7) * 0.003;
       break;
+    }
 
     case "investigating": {
       // Drift gently in current wander direction
-      const strength = 0.015 * f.personality.curiosity;
+      const strength = 0.02 * f.personality.curiosity;
       f.vx += Math.cos(f.wanderAngle) * strength;
       f.vy += Math.sin(f.wanderAngle) * strength;
       f.vx *= 0.95;
       f.vy *= 0.95;
+      // Slowly rotate wander angle for natural investigation arc
+      f.wanderAngle += Math.sin(_behaviorTick * 0.03 + phase) * 0.02;
       break;
     }
 
-    case "resting":
+    case "resting": {
       f.vx *= FISH_REST_DAMPING;
       f.vy *= FISH_REST_DAMPING;
       // Drift toward lower tank
       if (f.y < TANK_FLOOR_Y - FISH_NIGHT_SINK_FLOOR_OFFSET) {
         f.vy += FISH_NIGHT_SINK_FORCE;
       }
+      // Even resting fish breathe — tiny motion
+      f.vy += Math.sin(_behaviorTick * 0.04 + phase) * 0.003;
+      f.vx += Math.sin(_behaviorTick * 0.025 + phase * 2.1) * 0.002;
       // Wake up if it's no longer night
       if (!ctx.isNight) {
         f.state = "roaming";
         f.stateTimer = 0;
       }
       break;
+    }
   }
 
   // Wall avoidance still applies during timed states
   applyWallAvoidance(f);
   applySeparation(f, ctx.allFish);
 
+  // Minimum speed even during timed states
+  applyMinimumDrift(f);
+
   // Update facing
   if (Math.abs(f.vx) > 0.01) {
     f.facingDirection = f.vx > 0 ? 1 : -1;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Idle drift — micro-motion that keeps fish alive-looking
+// ---------------------------------------------------------------------------
+
+function applyIdleDrift(f: FishEntity, phase: number): void {
+  if (Math.random() < FISH_IDLE_DRIFT_CHANCE) {
+    const angle = f.wanderAngle + (Math.random() - 0.5) * 1.5;
+    f.vx += Math.cos(angle) * FISH_IDLE_DRIFT_STRENGTH;
+    f.vy += Math.sin(angle) * FISH_IDLE_DRIFT_STRENGTH * 0.7;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Minimum speed enforcement — fish never fully stop
+// ---------------------------------------------------------------------------
+
+function applyMinimumDrift(f: FishEntity): void {
+  const speed = Math.sqrt(f.vx * f.vx + f.vy * f.vy);
+  if (speed < FISH_MIN_SPEED && speed > 0) {
+    // Boost to minimum speed in current direction
+    const scale = FISH_MIN_SPEED / speed;
+    f.vx *= scale;
+    f.vy *= scale;
+  } else if (speed === 0) {
+    // Kick in a gentle random direction
+    const angle = f.wanderAngle;
+    f.vx = Math.cos(angle) * FISH_MIN_SPEED;
+    f.vy = Math.sin(angle) * FISH_MIN_SPEED * 0.5;
   }
 }
 
@@ -204,7 +291,7 @@ export function decideState(f: FishEntity, ctx: BehaviorContext): void {
       enterState(f, "hovering", FISH_HOVER_DURATION * (0.5 + Math.random()));
       return;
     }
-    // Idle
+    // Idle (rare — short micro-pause)
     if (Math.random() < FISH_IDLE_CHANCE * (1 - f.personality.energy * 0.5)) {
       enterState(f, "idle", FISH_IDLE_DURATION_TICKS * (0.5 + Math.random()));
       return;
@@ -238,6 +325,10 @@ function applySteeringForces(f: FishEntity, ctx: BehaviorContext): void {
     applyWander(f, ctx.isNight);
   }
 
+  // Ambient vertical drift (buoyancy oscillation) — always active
+  const phase = (f.x * 7.3 + f.y * 13.1) % (Math.PI * 2);
+  f.vy += Math.sin(_behaviorTick * FISH_VERTICAL_DRIFT_SPEED + phase) * FISH_VERTICAL_DRIFT_STRENGTH;
+
   // Night: gentle downward drift
   if (ctx.isNight && f.y < TANK_FLOOR_Y - FISH_NIGHT_SINK_FLOOR_OFFSET) {
     f.vy += FISH_NIGHT_SINK_FORCE * 0.5;
@@ -260,7 +351,13 @@ function applyWander(f: FishEntity, isNight: boolean): void {
 
   // Occasionally pick a completely new direction
   if (f.stateTimer <= 0 && Math.random() < FISH_WANDER_RETARGET_CHANCE) {
-    f.wanderAngle = Math.random() * Math.PI * 2;
+    // Bias toward center of tank for better space utilization
+    const cx = TANK_WIDTH / 2;
+    const cy = (WATER_SURFACE_Y + TANK_FLOOR_Y) / 2;
+    const toCenterAngle = Math.atan2(cy - f.y, cx - f.x);
+    // Blend between random and center-seeking (30% center bias)
+    const randomAngle = Math.random() * Math.PI * 2;
+    f.wanderAngle = randomAngle + shortAngleDist(randomAngle, toCenterAngle) * 0.3;
   }
 
   // Decrease cruise timer if active
@@ -270,7 +367,7 @@ function applyWander(f: FishEntity, isNight: boolean): void {
 
   const strength = FISH_WANDER_STRENGTH * f.personality.energy * (isNight ? 0.5 : 1);
   f.vx += Math.cos(f.wanderAngle) * strength;
-  f.vy += Math.sin(f.wanderAngle) * strength * 0.6; // fish swim more horizontally
+  f.vy += Math.sin(f.wanderAngle) * strength * 0.7; // fish swim more horizontally, but not as suppressed
 }
 
 // ---------------------------------------------------------------------------
@@ -294,7 +391,7 @@ function applyFoodAttraction(f: FishEntity, pellets: FoodPellet[]): void {
 }
 
 // ---------------------------------------------------------------------------
-// Wall avoidance — soft gradient + hard repulsion near edges
+// Wall avoidance — soft gradient + hard repulsion + anticipatory steering
 // ---------------------------------------------------------------------------
 
 export function applyWallAvoidance(f: FishEntity): void {
@@ -311,25 +408,31 @@ export function applyWallAvoidance(f: FishEntity): void {
   const dTop = f.y - topEdge;
   const dBottom = bottomEdge - f.y;
 
-  // Soft avoidance
+  // Anticipatory multiplier: stronger avoidance when swimming toward a wall
+  const approachLeft = f.vx < 0 ? FISH_WALL_APPROACH_MULTIPLIER : 1;
+  const approachRight = f.vx > 0 ? FISH_WALL_APPROACH_MULTIPLIER : 1;
+  const approachTop = f.vy < 0 ? FISH_WALL_APPROACH_MULTIPLIER : 1;
+  const approachBottom = f.vy > 0 ? FISH_WALL_APPROACH_MULTIPLIER : 1;
+
+  // Soft avoidance with approach awareness
   if (dLeft < dist) {
     const t = 1 - dLeft / dist;
-    f.vx += FISH_WALL_AVOIDANCE_STRENGTH * t;
+    f.vx += FISH_WALL_AVOIDANCE_STRENGTH * t * approachLeft;
     if (dLeft < halfDist) f.vx += FISH_WALL_HARD_REPULSION * (1 - dLeft / halfDist);
   }
   if (dRight < dist) {
     const t = 1 - dRight / dist;
-    f.vx -= FISH_WALL_AVOIDANCE_STRENGTH * t;
+    f.vx -= FISH_WALL_AVOIDANCE_STRENGTH * t * approachRight;
     if (dRight < halfDist) f.vx -= FISH_WALL_HARD_REPULSION * (1 - dRight / halfDist);
   }
   if (dTop < dist) {
     const t = 1 - dTop / dist;
-    f.vy += FISH_WALL_AVOIDANCE_STRENGTH * t;
+    f.vy += FISH_WALL_AVOIDANCE_STRENGTH * t * approachTop;
     if (dTop < halfDist) f.vy += FISH_WALL_HARD_REPULSION * (1 - dTop / halfDist);
   }
   if (dBottom < dist) {
     const t = 1 - dBottom / dist;
-    f.vy -= FISH_WALL_AVOIDANCE_STRENGTH * t;
+    f.vy -= FISH_WALL_AVOIDANCE_STRENGTH * t * approachBottom;
     if (dBottom < halfDist) f.vy -= FISH_WALL_HARD_REPULSION * (1 - dBottom / halfDist);
   }
 }
@@ -422,4 +525,14 @@ export function startEatingPause(fish: FishEntity): FishEntity {
     state: "eating" as const,
     stateTimer: FISH_EATING_PAUSE_TICKS,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Shortest signed angle distance from a to b */
+function shortAngleDist(a: number, b: number): number {
+  const d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
+  return d < -Math.PI ? d + Math.PI * 2 : d;
 }
