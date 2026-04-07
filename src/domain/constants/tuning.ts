@@ -15,21 +15,21 @@ export const TANK_FLOOR_Y = 460;
 // Fish movement — base physics
 // ---------------------------------------------------------------------------
 
-export const FISH_BASE_SPEED = 2.0;
-export const FISH_SPEED_VARIATION = 0.6;
+export const FISH_BASE_SPEED = 16;
+export const FISH_SPEED_VARIATION = 5;
 /** Per-tick velocity blend toward desired (0-1). Lower = smoother turns */
-export const FISH_TURN_SMOOTHING = 0.4;
+export const FISH_TURN_SMOOTHING = 0.35;
 /** Minimum speed fish always maintain — prevents "dead still" look */
-export const FISH_MIN_SPEED = 0.3;
+export const FISH_MIN_SPEED = 2.5;
 
 // ---------------------------------------------------------------------------
 // Wall avoidance
 // ---------------------------------------------------------------------------
 
-export const FISH_WALL_AVOIDANCE_DISTANCE = 80;
-export const FISH_WALL_AVOIDANCE_STRENGTH = 0.5;
+export const FISH_WALL_AVOIDANCE_DISTANCE = 100;
+export const FISH_WALL_AVOIDANCE_STRENGTH = 4;
 /** Extra repulsion very close to walls (within half the avoidance distance) */
-export const FISH_WALL_HARD_REPULSION = 1.5;
+export const FISH_WALL_HARD_REPULSION = 12;
 /** Extra avoidance when swimming toward a wall (anticipatory steering) */
 export const FISH_WALL_APPROACH_MULTIPLIER = 1.8;
 
@@ -37,8 +37,8 @@ export const FISH_WALL_APPROACH_MULTIPLIER = 1.8;
 // Fish-to-fish separation
 // ---------------------------------------------------------------------------
 
-export const FISH_SEPARATION_DISTANCE = 50;
-export const FISH_SEPARATION_STRENGTH = 0.8;
+export const FISH_SEPARATION_DISTANCE = 55;
+export const FISH_SEPARATION_STRENGTH = 6;
 /** Sociability reduces separation force — social fish tolerate closer proximity */
 export const FISH_SOCIABILITY_SEPARATION_FACTOR = 0.5;
 
@@ -46,10 +46,10 @@ export const FISH_SOCIABILITY_SEPARATION_FACTOR = 0.5;
 // Food attraction
 // ---------------------------------------------------------------------------
 
-export const FISH_FOOD_ATTRACTION_RANGE = 300;
-export const FISH_FOOD_ATTRACTION_STRENGTH = 1.5;
+export const FISH_FOOD_ATTRACTION_RANGE = 350;
+export const FISH_FOOD_ATTRACTION_STRENGTH = 12;
 /** Hunger threshold before a fish starts looking for food (0-100 hunger scale) */
-export const FISH_FOOD_NOTICE_HUNGER = 25;
+export const FISH_FOOD_NOTICE_HUNGER = 3;
 /** Ticks the fish pauses after eating a pellet */
 export const FISH_EATING_PAUSE_TICKS = 15;
 
@@ -58,11 +58,11 @@ export const FISH_EATING_PAUSE_TICKS = 15;
 // ---------------------------------------------------------------------------
 
 /** Strength of the wander steering force */
-export const FISH_WANDER_STRENGTH = 0.35;
+export const FISH_WANDER_STRENGTH = 3;
 /** How quickly the wander angle drifts (radians per tick) */
-export const FISH_WANDER_ANGLE_DRIFT = 0.18;
+export const FISH_WANDER_ANGLE_DRIFT = 0.22;
 /** Chance per tick a roaming fish picks a brand-new wander target */
-export const FISH_WANDER_RETARGET_CHANCE = 0.025;
+export const FISH_WANDER_RETARGET_CHANCE = 0.03;
 /** Chance per tick to enter a short cruise (straight-line swim) */
 export const FISH_CRUISE_CHANCE = 0.006;
 /** Ticks a cruise lasts (base — varied ×0.5-1.5) */
@@ -73,7 +73,7 @@ export const FISH_CRUISE_DURATION = 80;
 // ---------------------------------------------------------------------------
 
 /** Strength of ambient vertical oscillation */
-export const FISH_VERTICAL_DRIFT_STRENGTH = 0.04;
+export const FISH_VERTICAL_DRIFT_STRENGTH = 0.3;
 /** Speed of vertical drift oscillation (radians per tick) */
 export const FISH_VERTICAL_DRIFT_SPEED = 0.03;
 
@@ -109,7 +109,7 @@ export const FISH_IDLE_DURATION_TICKS = 40;
 // ---------------------------------------------------------------------------
 
 /** Strength of random micro-drift injected during idle/hover/rest */
-export const FISH_IDLE_DRIFT_STRENGTH = 0.04;
+export const FISH_IDLE_DRIFT_STRENGTH = 0.3;
 /** How often (chance per tick) an idle fish gets a micro-nudge */
 export const FISH_IDLE_DRIFT_CHANCE = 0.15;
 
@@ -119,7 +119,7 @@ export const FISH_IDLE_DRIFT_CHANCE = 0.15;
 
 export const FISH_NIGHT_SPEED_MULTIPLIER = 0.45;
 /** Extra downward drift per tick at night */
-export const FISH_NIGHT_SINK_FORCE = 0.015;
+export const FISH_NIGHT_SINK_FORCE = 0.12;
 /** Y threshold below which night fish stop sinking further */
 export const FISH_NIGHT_SINK_FLOOR_OFFSET = 100;
 /** Chance per tick a fish transitions to resting at night */

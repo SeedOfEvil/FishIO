@@ -1,5 +1,6 @@
 import { useSelectedFish } from "@/store/selectors";
 import { useGameStore } from "@/store/useGameStore";
+import { SPECIES } from "@/domain/fish/fishSpecies";
 
 function StatBar({ label, value, color }: { label: string; value: number; color: string }) {
 	return (
@@ -35,6 +36,8 @@ export function FishInspector() {
 			</div>
 
 			<div className="inspector-meta">
+				<span>{SPECIES[fish.species]?.name ?? "Unknown"}</span>
+				<span className="separator">|</span>
 				<span>{fish.sex === "male" ? "Male" : "Female"}</span>
 				<span className="separator">|</span>
 				<span>{fish.ageStage}</span>

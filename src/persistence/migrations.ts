@@ -1,7 +1,11 @@
 import type { SaveFile } from "./saveSchema";
 import { SAVE_VERSION } from "./saveSchema";
 
-type Migration = (save: SaveFile) => SaveFile;
+// Migrations work on raw saved data — shapes change between versions,
+// so we use `any` to avoid fighting the current FishEntity type.
+// biome-ignore lint/suspicious/noExplicitAny: migration data is untyped
+type RawSave = { version: number; state: Record<string, any>; [k: string]: any };
+type Migration = (save: RawSave) => RawSave;
 
 const migrations: Record<number, Migration> = {
   // v1 -> v2: fish gained stateTimer, wanderAngle, curiosity; lost idleTimer
@@ -21,10 +25,25 @@ const migrations: Record<number, Migration> = {
       })),
     },
   }),
+
+  // v2 -> v3: fish gained species field
+  3: (save) => ({
+    ...save,
+    version: 3,
+    state: {
+      ...save.state,
+      fish: (save.state.fish ?? []).map((f: Record<string, unknown>) => ({
+        ...f,
+        species: f.species ?? "goldfish",
+        phaseSeed: f.phaseSeed ?? Math.random() * 1000,
+        localTick: f.localTick ?? Math.floor(Math.random() * 500),
+      })),
+    },
+  }),
 };
 
 export function migrateSave(save: SaveFile): SaveFile {
-  let current = save;
+  let current = save as RawSave;
   while (current.version < SAVE_VERSION) {
     const nextVersion = current.version + 1;
     const migration = migrations[nextVersion];
@@ -34,5 +53,5 @@ export function migrateSave(save: SaveFile): SaveFile {
     }
     current = migration(current);
   }
-  return current;
+  return current as unknown as SaveFile;
 }

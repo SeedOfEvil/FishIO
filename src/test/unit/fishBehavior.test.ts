@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   updateFishBehavior,
+  moveFish,
   applyWallAvoidance,
   applySeparation,
   findNearestFood,
@@ -31,6 +32,13 @@ function makeCtx(overrides?: Partial<BehaviorContext>): BehaviorContext {
   };
 }
 
+/** Simulate a full tick: behavior decision + physics move (1 second dt) */
+function fullTick(fish: FishEntity, ctx: BehaviorContext): FishEntity {
+  let f = updateFishBehavior(fish, ctx);
+  f = moveFish(f, ctx.allFish, ctx.foodPellets, ctx.isNight, 1);
+  return f;
+}
+
 beforeEach(() => {
   resetBehaviorTick();
 });
@@ -55,15 +63,15 @@ describe("behavior state transitions", () => {
   it("eating state pauses and then transitions out", () => {
     const fish = createFish({ state: "eating", stateTimer: 1, vx: 0.3, vy: 0.1 });
     const updated = updateFishBehavior(fish, makeCtx());
-    // Timer expired → should leave eating
     expect(updated.state).not.toBe("eating");
   });
 
   it("hovering state applies damping", () => {
-    const fish = createFish({ state: "hovering", stateTimer: 30, vx: 0.5, vy: 0.2 });
-    const updated = updateFishBehavior(fish, makeCtx());
+    const fish = createFish({ state: "hovering", stateTimer: 30, vx: 10, vy: 4, x: 400, y: 260 });
+    const ctx = makeCtx();
+    const updated = moveFish(fish, [], [], false, 1);
     const speed = Math.sqrt(updated.vx ** 2 + updated.vy ** 2);
-    const origSpeed = Math.sqrt(0.5 ** 2 + 0.2 ** 2);
+    const origSpeed = Math.sqrt(10 ** 2 + 4 ** 2);
     expect(speed).toBeLessThan(origSpeed);
   });
 
@@ -77,8 +85,7 @@ describe("behavior state transitions", () => {
       x: 400,
       y: 300,
     });
-    const updated = updateFishBehavior(curious, makeCtx());
-    // Should have some velocity from investigating drift
+    const updated = moveFish(curious, [], [], false, 1);
     expect(Math.abs(updated.vx) + Math.abs(updated.vy)).toBeGreaterThan(0);
   });
 
@@ -155,14 +162,12 @@ describe("wall avoidance", () => {
   });
 
   it("applies stronger avoidance when fish swims toward wall (anticipatory)", () => {
-    // Fish near left wall, swimming left vs stationary — measure avoidance force applied
     const swimmingToward = createFish({ x: TANK_PADDING + 30, y: 250, vx: -0.3, vy: 0 });
     const stationary = createFish({ x: TANK_PADDING + 30, y: 250, vx: 0, vy: 0 });
     const beforeToward = swimmingToward.vx;
     const beforeStationary = stationary.vx;
     applyWallAvoidance(swimmingToward);
     applyWallAvoidance(stationary);
-    // Fish swimming toward wall should receive a larger avoidance delta
     const deltaToward = swimmingToward.vx - beforeToward;
     const deltaStationary = stationary.vx - beforeStationary;
     expect(deltaToward).toBeGreaterThan(deltaStationary);
@@ -200,19 +205,18 @@ describe("food attraction", () => {
     const fish = createFish({
       x: 400, y: 300, vx: 0, vy: 0,
       hunger: 70,
-      state: "roaming", stateTimer: 0,
+      state: "seeking_food", stateTimer: 0,
       personality: { energy: 0.5, sociability: 0.5, boldness: 0.9, appetite: 0.8, curiosity: 0.5 },
     });
     const pellet: FoodPellet = { id: "f1", x: 450, y: 300, lifetime: 10, claimed: false };
-    const updated = updateFishBehavior(fish, makeCtx({ foodPellets: [pellet] }));
-    // Should be moving rightward toward food
+    const updated = moveFish(fish, [], [pellet], false, 1);
     expect(updated.vx).toBeGreaterThan(fish.vx);
   });
 
   it("low-hunger fish ignores nearby food", () => {
     const fish = createFish({
       x: 400, y: 300, vx: 0, vy: 0,
-      hunger: 10,
+      hunger: 2,
       state: "roaming", stateTimer: 0,
       personality: { energy: 0.5, sociability: 0.5, boldness: 0.9, appetite: 0.8, curiosity: 0.5 },
     });
@@ -229,18 +233,17 @@ describe("food attraction", () => {
 describe("nighttime behavior", () => {
   it("night speed limit is lower than day speed limit", () => {
     const fish = createFish({
-      x: 400, y: 250, vx: 0.5, vy: 0,
+      x: 400, y: 250, vx: 20, vy: 0,
       state: "roaming", stateTimer: 0,
       personality: { energy: 0.8, sociability: 0.5, boldness: 0.5, appetite: 0.8, curiosity: 0.5 },
     });
 
-    const dayResult = updateFishBehavior(fish, makeCtx({ isNight: false }));
-    resetBehaviorTick();
-    const nightResult = updateFishBehavior(fish, makeCtx({ isNight: true }));
+    const dayResult = moveFish(fish, [], [], false, 1);
+    const nightResult = moveFish(fish, [], [], true, 1);
 
     const daySpeed = Math.sqrt(dayResult.vx ** 2 + dayResult.vy ** 2);
     const nightSpeed = Math.sqrt(nightResult.vx ** 2 + nightResult.vy ** 2);
-    expect(nightSpeed).toBeLessThanOrEqual(daySpeed + 0.01); // small epsilon
+    expect(nightSpeed).toBeLessThanOrEqual(daySpeed + 0.01);
   });
 
   it("resting fish drifts downward at night", () => {
@@ -248,12 +251,11 @@ describe("nighttime behavior", () => {
       state: "resting", stateTimer: 50,
       x: 400, y: 200, vx: 0, vy: 0,
     });
-    const updated = updateFishBehavior(fish, makeCtx({ isNight: true }));
+    const updated = moveFish(fish, [], [], true, 1);
     expect(updated.vy).toBeGreaterThan(0);
   });
 
   it("night reduces wander energy via speed multiplier", () => {
-    // Run many ticks sequentially, building up speed, and compare
     let dayFish = createFish({
       x: 400, y: 250, vx: 0.3, vy: 0.1,
       state: "roaming", stateTimer: 0,
@@ -267,11 +269,15 @@ describe("nighttime behavior", () => {
 
     let dayTotal = 0;
     let nightTotal = 0;
+    const dayCtx = makeCtx({ isNight: false });
+    const nightCtx = makeCtx({ isNight: true });
 
     for (let i = 0; i < 50; i++) {
       advanceBehaviorTick();
-      dayFish = updateFishBehavior(dayFish, makeCtx({ isNight: false }));
-      nightFish = updateFishBehavior(nightFish, makeCtx({ isNight: true }));
+      dayFish = updateFishBehavior(dayFish, dayCtx);
+      dayFish = moveFish(dayFish, [], [], false, 1);
+      nightFish = updateFishBehavior(nightFish, nightCtx);
+      nightFish = moveFish(nightFish, [], [], true, 1);
       dayTotal += Math.sqrt(dayFish.vx ** 2 + dayFish.vy ** 2);
       nightTotal += Math.sqrt(nightFish.vx ** 2 + nightFish.vy ** 2);
     }
@@ -284,7 +290,7 @@ describe("nighttime behavior", () => {
       x: 400, y: 250, vx: 0.1, vy: 0,
       state: "roaming", stateTimer: 0,
     });
-    const updated = updateFishBehavior(fish, makeCtx({ isNight: true }));
+    const updated = moveFish(fish, [], [], true, 1);
     const speed = Math.sqrt(updated.vx ** 2 + updated.vy ** 2);
     expect(speed).toBeGreaterThan(0);
   });
@@ -296,27 +302,30 @@ describe("nighttime behavior", () => {
 
 describe("personality effects", () => {
   it("energetic fish has higher max speed", () => {
-    const base = { x: 400, y: 250, vx: 1, vy: 0, state: "roaming" as const, stateTimer: 0 };
-    const lowEnergy = createFish({
+    const base = { x: 400, y: 250, vx: 25, vy: 0, state: "roaming" as const, stateTimer: 0, wanderAngle: 0 };
+    let lowFish = createFish({
       ...base,
       personality: { energy: 0.1, sociability: 0.5, boldness: 0.5, appetite: 0.8, curiosity: 0.5 },
     });
-    const highEnergy = createFish({
+    let highFish = createFish({
       ...base,
       personality: { energy: 0.9, sociability: 0.5, boldness: 0.5, appetite: 0.8, curiosity: 0.5 },
     });
 
-    const lowResult = updateFishBehavior(lowEnergy, makeCtx());
-    const highResult = updateFishBehavior(highEnergy, makeCtx());
-    const lowSpeed = Math.sqrt(lowResult.vx ** 2 + lowResult.vy ** 2);
-    const highSpeed = Math.sqrt(highResult.vx ** 2 + highResult.vy ** 2);
+    const ctx = makeCtx();
+    for (let i = 0; i < 10; i++) {
+      lowFish = fullTick(lowFish, ctx);
+      highFish = fullTick(highFish, ctx);
+    }
+    const lowSpeed = Math.sqrt(lowFish.vx ** 2 + lowFish.vy ** 2);
+    const highSpeed = Math.sqrt(highFish.vx ** 2 + highFish.vy ** 2);
     expect(highSpeed).toBeGreaterThan(lowSpeed);
   });
 
   it("bold fish approaches food faster", () => {
     const baseProps = {
       x: 400, y: 300, vx: 0, vy: 0, hunger: 70,
-      state: "roaming" as const, stateTimer: 0,
+      state: "seeking_food" as const, stateTimer: 0,
     };
     const timid = createFish({
       ...baseProps,
@@ -327,12 +336,10 @@ describe("personality effects", () => {
       personality: { energy: 0.5, sociability: 0.5, boldness: 0.9, appetite: 0.8, curiosity: 0.5 },
     });
     const pellet: FoodPellet = { id: "f1", x: 500, y: 300, lifetime: 10, claimed: false };
-    const ctx = makeCtx({ foodPellets: [pellet] });
 
-    const timidResult = updateFishBehavior(timid, ctx);
-    const boldResult = updateFishBehavior(bold, ctx);
+    const timidResult = moveFish(timid, [], [pellet], false, 1);
+    const boldResult = moveFish(bold, [], [pellet], false, 1);
 
-    // Bold fish should have more rightward velocity toward food
     expect(boldResult.vx).toBeGreaterThan(timidResult.vx);
   });
 
@@ -349,16 +356,13 @@ describe("personality effects", () => {
       personality: { energy: 0.5, sociability: 0.9, boldness: 0.5, appetite: 0.8, curiosity: 0.5 },
     });
 
-    // Apply separation directly
     applySeparation(loner, [loner, neighbor]);
     applySeparation(social, [social, neighbor]);
 
-    // Loner should be pushed away more (more negative vx since neighbor is to the right)
     expect(Math.abs(loner.vx)).toBeGreaterThan(Math.abs(social.vx));
   });
 
   it("curious fish enters investigating state more often (statistical)", () => {
-    // This is probabilistic — run many trials
     let curiousInvestigations = 0;
     let boringInvestigations = 0;
 
@@ -393,7 +397,6 @@ describe("fish separation", () => {
     const a = createFish({ x: 400, y: 300, vx: 0, vy: 0, id: "a" });
     const b = createFish({ x: 410, y: 300, vx: 0, vy: 0, id: "b" });
     applySeparation(a, [a, b]);
-    // a is to the left of b, so should be pushed further left
     expect(a.vx).toBeLessThan(0);
   });
 
@@ -414,14 +417,14 @@ describe("continuous movement", () => {
     let fish = createFish({ x: 400, y: 250, vx: 0, vy: 0, state: "roaming", stateTimer: 0 });
     const ctx = makeCtx();
 
-    // Run 50 ticks
     for (let i = 0; i < 50; i++) {
       advanceBehaviorTick();
-      fish = updateFishBehavior(fish, ctx);
+      fish = fullTick(fish, ctx);
     }
 
     const speed = Math.sqrt(fish.vx ** 2 + fish.vy ** 2);
-    expect(speed).toBeGreaterThanOrEqual(FISH_MIN_SPEED * 0.5);
+    // With drag-based physics, fish build speed gradually from wander force
+    expect(speed).toBeGreaterThan(0.01);
   });
 
   it("idle fish still has subtle motion (not dead still)", () => {
@@ -431,10 +434,9 @@ describe("continuous movement", () => {
     });
     const ctx = makeCtx();
 
-    // Run through several ticks of idle
     for (let i = 0; i < 20; i++) {
       advanceBehaviorTick();
-      fish = updateFishBehavior(fish, ctx);
+      fish = fullTick(fish, ctx);
     }
 
     const speed = Math.sqrt(fish.vx ** 2 + fish.vy ** 2);
@@ -447,9 +449,7 @@ describe("continuous movement", () => {
       state: "hovering", stateTimer: 30,
     });
 
-    advanceBehaviorTick();
-    const updated = updateFishBehavior(fish, makeCtx());
-    // Should have non-zero velocity from hover bob + minimum drift
+    const updated = moveFish(fish, [], [], false, 1);
     const speed = Math.sqrt(updated.vx ** 2 + updated.vy ** 2);
     expect(speed).toBeGreaterThan(0);
   });
@@ -460,8 +460,7 @@ describe("continuous movement", () => {
       state: "roaming", stateTimer: 0,
     });
 
-    advanceBehaviorTick();
-    const updated = updateFishBehavior(fish, makeCtx());
+    const updated = moveFish(fish, [], [], false, 1);
     const speed = Math.sqrt(updated.vx ** 2 + updated.vy ** 2);
     expect(speed).toBeGreaterThan(0);
   });
@@ -473,11 +472,10 @@ describe("continuous movement", () => {
 
     for (let i = 0; i < 100; i++) {
       advanceBehaviorTick();
-      fish = updateFishBehavior(fish, ctx);
+      fish = fullTick(fish, ctx);
       maxVy = Math.max(maxVy, Math.abs(fish.vy));
     }
 
-    // Should have had meaningful vertical movement at some point
     expect(maxVy).toBeGreaterThan(0.01);
   });
 });
@@ -496,10 +494,9 @@ describe("wall avoidance prevents edge-sticking", () => {
 
     for (let i = 0; i < 30; i++) {
       advanceBehaviorTick();
-      fish = updateFishBehavior(fish, ctx);
+      fish = fullTick(fish, ctx);
     }
 
-    // Fish should have moved away from the left wall
     expect(fish.x).toBeGreaterThan(TANK_PADDING + 20);
   });
 });

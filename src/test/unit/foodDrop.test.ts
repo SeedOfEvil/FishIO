@@ -9,7 +9,7 @@ describe("foodDrop", () => {
 		const pellet = createFoodPellet(400);
 		expect(pellet.x).toBe(400);
 		expect(pellet.y).toBeCloseTo(WATER_SURFACE_Y + 5, 0);
-		expect(pellet.lifetime).toBe(30);
+		expect(pellet.lifetime).toBe(600);
 		expect(pellet.claimed).toBe(false);
 	});
 

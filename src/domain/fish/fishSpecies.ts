@@ -1,0 +1,481 @@
+import type { PersonalityTraits } from "./fishTypes";
+
+export type FishSpecies =
+  | "goldfish"
+  | "betta"
+  | "angelfish"
+  | "neonTetra"
+  | "guppy"
+  | "clownfish"
+  | "tang"
+  | "discus"
+  | "molly"
+  | "platy"
+  | "swordtail"
+  | "danio"
+  | "rasbora"
+  | "gourami"
+  | "corydoras"
+  | "pleco"
+  | "oscar"
+  | "killifish"
+  | "rainbowfish"
+  | "pufferfish";
+
+export type BodyShape = "standard" | "round" | "slender" | "tall" | "flat" | "elongated";
+
+export interface SpeciesDefinition {
+  name: string;
+  bodyShape: BodyShape;
+  /** Base size multiplier relative to standard (1.0) */
+  sizeMultiplier: number;
+  /** HSL hue range [min, max] */
+  hueRange: [number, number];
+  /** HSL saturation (0-100) */
+  saturation: number;
+  /** HSL lightness (0-100) */
+  lightness: number;
+  /** Whether this fish has stripes */
+  hasStripes: boolean;
+  /** Stripe color hue (if hasStripes) */
+  stripeHue?: number;
+  /** Whether this fish has spots */
+  hasSpots: boolean;
+  /** Whether this fish has a large flowing tail */
+  hasFlowingTail: boolean;
+  /** Whether this fish has long dorsal fin */
+  hasLongDorsal: boolean;
+  /** Whether this fish has whiskers/barbels */
+  hasWhiskers: boolean;
+  /** Personality tendency — biases random generation toward these values */
+  personalityBias: Partial<PersonalityTraits>;
+  /** Price to buy this fish */
+  price: number;
+  /** Names pool specific to this species */
+  names: string[];
+  /** Short description for the shop */
+  description: string;
+  /** Tail size multiplier (1.0 = normal) */
+  tailSize: number;
+  /** Fin opacity multiplier */
+  finOpacity: number;
+  /** Eye size multiplier */
+  eyeSize: number;
+}
+
+export const SPECIES: Record<FishSpecies, SpeciesDefinition> = {
+  goldfish: {
+    name: "Goldfish",
+    bodyShape: "standard",
+    sizeMultiplier: 1.0,
+    hueRange: [25, 40],
+    saturation: 85,
+    lightness: 55,
+    hasStripes: false,
+    hasSpots: false,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { appetite: 0.85 },
+    price: 10,
+    names: ["Goldie", "Bubbles", "Sunny", "Amber", "Honey", "Marigold", "Copper", "Saffron"],
+    description: "A classic pet fish. Always hungry!",
+    tailSize: 1.0,
+    finOpacity: 0.8,
+    eyeSize: 1.0,
+  },
+  betta: {
+    name: "Betta",
+    bodyShape: "slender",
+    sizeMultiplier: 0.95,
+    hueRange: [260, 320],
+    saturation: 90,
+    lightness: 50,
+    hasStripes: false,
+    hasSpots: false,
+    hasFlowingTail: true,
+    hasLongDorsal: true,
+    hasWhiskers: false,
+    personalityBias: { boldness: 0.9, sociability: 0.15, energy: 0.4 },
+    price: 25,
+    names: ["Rex", "King", "Blaze", "Phantom", "Jewel", "Sapphire", "Velvet", "Storm"],
+    description: "Gorgeous flowing fins. Feisty loner.",
+    tailSize: 2.0,
+    finOpacity: 0.9,
+    eyeSize: 0.9,
+  },
+  angelfish: {
+    name: "Angelfish",
+    bodyShape: "tall",
+    sizeMultiplier: 1.3,
+    hueRange: [0, 60],
+    saturation: 20,
+    lightness: 80,
+    hasStripes: true,
+    stripeHue: 0,
+    hasSpots: false,
+    hasFlowingTail: true,
+    hasLongDorsal: true,
+    hasWhiskers: false,
+    personalityBias: { sociability: 0.6, energy: 0.35, curiosity: 0.7 },
+    price: 35,
+    names: ["Angel", "Grace", "Halo", "Seraph", "Luna", "Silver", "Pearl", "Dove"],
+    description: "Elegant and tall. Graceful swimmer.",
+    tailSize: 1.5,
+    finOpacity: 0.7,
+    eyeSize: 1.1,
+  },
+  neonTetra: {
+    name: "Neon Tetra",
+    bodyShape: "slender",
+    sizeMultiplier: 0.5,
+    hueRange: [195, 210],
+    saturation: 95,
+    lightness: 55,
+    hasStripes: true,
+    stripeHue: 0,
+    hasSpots: false,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { sociability: 0.9, energy: 0.7, boldness: 0.2 },
+    price: 5,
+    names: ["Neon", "Flash", "Spark", "Pixel", "Glint", "Zip", "Dash", "Flicker"],
+    description: "Tiny and vibrant. Loves company!",
+    tailSize: 0.7,
+    finOpacity: 0.6,
+    eyeSize: 1.3,
+  },
+  guppy: {
+    name: "Guppy",
+    bodyShape: "slender",
+    sizeMultiplier: 0.55,
+    hueRange: [0, 360],
+    saturation: 90,
+    lightness: 55,
+    hasStripes: false,
+    hasSpots: true,
+    hasFlowingTail: true,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { energy: 0.7, sociability: 0.7, curiosity: 0.6 },
+    price: 5,
+    names: ["Pip", "Dot", "Sprinkle", "Confetti", "Skittles", "Rainbow", "Speck", "Dazzle"],
+    description: "Colorful and lively. Great beginner fish.",
+    tailSize: 1.6,
+    finOpacity: 0.85,
+    eyeSize: 1.2,
+  },
+  clownfish: {
+    name: "Clownfish",
+    bodyShape: "standard",
+    sizeMultiplier: 0.85,
+    hueRange: [18, 28],
+    saturation: 95,
+    lightness: 55,
+    hasStripes: true,
+    stripeHue: 0,
+    hasSpots: false,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { boldness: 0.75, curiosity: 0.6, sociability: 0.5 },
+    price: 30,
+    names: ["Nemo", "Marlin", "Coral", "Anemone", "Crush", "Squirt", "Gill", "Dory"],
+    description: "Bold and curious. Iconic orange stripes.",
+    tailSize: 0.9,
+    finOpacity: 0.85,
+    eyeSize: 1.1,
+  },
+  tang: {
+    name: "Blue Tang",
+    bodyShape: "round",
+    sizeMultiplier: 1.15,
+    hueRange: [210, 230],
+    saturation: 85,
+    lightness: 50,
+    hasStripes: false,
+    hasSpots: false,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { energy: 0.75, curiosity: 0.8, boldness: 0.5 },
+    price: 40,
+    names: ["Dory", "Azure", "Cobalt", "Indigo", "Sky", "Ocean", "Tide", "Wave"],
+    description: "Vibrant blue. Active and curious explorer.",
+    tailSize: 0.9,
+    finOpacity: 0.8,
+    eyeSize: 1.0,
+  },
+  discus: {
+    name: "Discus",
+    bodyShape: "round",
+    sizeMultiplier: 1.4,
+    hueRange: [340, 370],
+    saturation: 75,
+    lightness: 55,
+    hasStripes: true,
+    stripeHue: 200,
+    hasSpots: false,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { sociability: 0.7, energy: 0.3, boldness: 0.3 },
+    price: 60,
+    names: ["Duchess", "Royal", "Emperor", "Crimson", "Majesty", "Regal", "Crown", "Ruby"],
+    description: "Majestic disc shape. Calm and regal.",
+    tailSize: 0.8,
+    finOpacity: 0.7,
+    eyeSize: 0.9,
+  },
+  molly: {
+    name: "Molly",
+    bodyShape: "standard",
+    sizeMultiplier: 0.75,
+    hueRange: [0, 0],
+    saturation: 0,
+    lightness: 20,
+    hasStripes: false,
+    hasSpots: false,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { sociability: 0.7, energy: 0.5, appetite: 0.6 },
+    price: 8,
+    names: ["Shadow", "Midnight", "Velvet", "Onyx", "Pepper", "Charcoal", "Smoky", "Jet"],
+    description: "Sleek black beauty. Easygoing friend.",
+    tailSize: 1.0,
+    finOpacity: 0.75,
+    eyeSize: 1.0,
+  },
+  platy: {
+    name: "Platy",
+    bodyShape: "standard",
+    sizeMultiplier: 0.65,
+    hueRange: [0, 15],
+    saturation: 85,
+    lightness: 55,
+    hasStripes: false,
+    hasSpots: false,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { sociability: 0.75, energy: 0.6, boldness: 0.5 },
+    price: 6,
+    names: ["Cherry", "Flame", "Blush", "Scarlet", "Rose", "Poppy", "Berry", "Ember"],
+    description: "Cheerful red. Friendly and active.",
+    tailSize: 1.0,
+    finOpacity: 0.75,
+    eyeSize: 1.1,
+  },
+  swordtail: {
+    name: "Swordtail",
+    bodyShape: "elongated",
+    sizeMultiplier: 0.85,
+    hueRange: [5, 20],
+    saturation: 90,
+    lightness: 50,
+    hasStripes: false,
+    hasSpots: false,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { energy: 0.75, boldness: 0.7, sociability: 0.4 },
+    price: 8,
+    names: ["Blade", "Rapier", "Slash", "Fencer", "Knight", "Sabre", "Edge", "Spike"],
+    description: "Striking tail sword. Bold swimmer.",
+    tailSize: 1.8,
+    finOpacity: 0.8,
+    eyeSize: 1.0,
+  },
+  danio: {
+    name: "Zebra Danio",
+    bodyShape: "slender",
+    sizeMultiplier: 0.5,
+    hueRange: [210, 230],
+    saturation: 40,
+    lightness: 60,
+    hasStripes: true,
+    stripeHue: 45,
+    hasSpots: false,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { energy: 0.9, sociability: 0.8, boldness: 0.6 },
+    price: 4,
+    names: ["Zippy", "Zoom", "Stripe", "Bolt", "Dash", "Turbo", "Rocket", "Zoom"],
+    description: "Zippy striped speedster. Never sits still!",
+    tailSize: 0.7,
+    finOpacity: 0.6,
+    eyeSize: 1.2,
+  },
+  rasbora: {
+    name: "Harlequin Rasbora",
+    bodyShape: "slender",
+    sizeMultiplier: 0.55,
+    hueRange: [20, 35],
+    saturation: 75,
+    lightness: 60,
+    hasStripes: false,
+    hasSpots: false,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { sociability: 0.85, energy: 0.6, boldness: 0.3 },
+    price: 5,
+    names: ["Harley", "Quinn", "Jester", "Harlequin", "Motley", "Patch", "Trick", "Merry"],
+    description: "Peaceful schooling fish. Subtle beauty.",
+    tailSize: 0.8,
+    finOpacity: 0.7,
+    eyeSize: 1.1,
+  },
+  gourami: {
+    name: "Dwarf Gourami",
+    bodyShape: "round",
+    sizeMultiplier: 0.9,
+    hueRange: [200, 220],
+    saturation: 70,
+    lightness: 50,
+    hasStripes: true,
+    stripeHue: 10,
+    hasSpots: false,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: true,
+    personalityBias: { energy: 0.3, curiosity: 0.7, boldness: 0.4 },
+    price: 20,
+    names: ["Zen", "Whisper", "Lotus", "Calm", "Sage", "Drift", "Breeze", "Mist"],
+    description: "Peaceful and curious. Feeler whiskers!",
+    tailSize: 0.9,
+    finOpacity: 0.75,
+    eyeSize: 1.0,
+  },
+  corydoras: {
+    name: "Corydoras",
+    bodyShape: "flat",
+    sizeMultiplier: 0.6,
+    hueRange: [35, 50],
+    saturation: 30,
+    lightness: 65,
+    hasStripes: false,
+    hasSpots: true,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: true,
+    personalityBias: { sociability: 0.85, energy: 0.5, boldness: 0.3, curiosity: 0.8 },
+    price: 8,
+    names: ["Cory", "Scooter", "Digger", "Sandy", "Pebble", "Nugget", "Dusty", "Nibble"],
+    description: "Adorable bottom dweller. Loves friends.",
+    tailSize: 0.7,
+    finOpacity: 0.65,
+    eyeSize: 1.3,
+  },
+  pleco: {
+    name: "Pleco",
+    bodyShape: "flat",
+    sizeMultiplier: 1.6,
+    hueRange: [25, 40],
+    saturation: 15,
+    lightness: 30,
+    hasStripes: false,
+    hasSpots: true,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: true,
+    personalityBias: { energy: 0.2, sociability: 0.2, boldness: 0.3, curiosity: 0.4 },
+    price: 25,
+    names: ["Tank", "Hoover", "Sucker", "Algae", "Grunt", "Boulder", "Slab", "Chunk"],
+    description: "Big armored algae eater. Slow but sturdy.",
+    tailSize: 0.8,
+    finOpacity: 0.6,
+    eyeSize: 0.8,
+  },
+  oscar: {
+    name: "Oscar",
+    bodyShape: "round",
+    sizeMultiplier: 1.7,
+    hueRange: [20, 35],
+    saturation: 60,
+    lightness: 35,
+    hasStripes: false,
+    hasSpots: true,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { boldness: 0.9, appetite: 0.95, energy: 0.6, sociability: 0.2 },
+    price: 50,
+    names: ["Boss", "Titan", "Brute", "Chomp", "Jaws", "Chief", "Goliath", "Maximus"],
+    description: "Big personality. Big appetite. Big fish.",
+    tailSize: 1.0,
+    finOpacity: 0.8,
+    eyeSize: 0.9,
+  },
+  killifish: {
+    name: "Killifish",
+    bodyShape: "slender",
+    sizeMultiplier: 0.6,
+    hueRange: [160, 200],
+    saturation: 85,
+    lightness: 50,
+    hasStripes: false,
+    hasSpots: true,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { curiosity: 0.8, energy: 0.6, boldness: 0.5 },
+    price: 15,
+    names: ["Jewel", "Prism", "Opal", "Shimmer", "Gleam", "Spark", "Luster", "Gem"],
+    description: "Jewel-toned explorer. Loves to investigate.",
+    tailSize: 1.0,
+    finOpacity: 0.75,
+    eyeSize: 1.1,
+  },
+  rainbowfish: {
+    name: "Rainbowfish",
+    bodyShape: "elongated",
+    sizeMultiplier: 0.9,
+    hueRange: [180, 280],
+    saturation: 80,
+    lightness: 55,
+    hasStripes: false,
+    hasSpots: false,
+    hasFlowingTail: false,
+    hasLongDorsal: true,
+    hasWhiskers: false,
+    personalityBias: { energy: 0.7, sociability: 0.75, curiosity: 0.6 },
+    price: 18,
+    names: ["Prism", "Chroma", "Iridescent", "Spectrum", "Vivid", "Aurora", "Radiant", "Lustre"],
+    description: "Shimmering iridescent scales. Active schooler.",
+    tailSize: 1.1,
+    finOpacity: 0.85,
+    eyeSize: 1.0,
+  },
+  pufferfish: {
+    name: "Pufferfish",
+    bodyShape: "round",
+    sizeMultiplier: 0.8,
+    hueRange: [50, 70],
+    saturation: 60,
+    lightness: 60,
+    hasStripes: false,
+    hasSpots: true,
+    hasFlowingTail: false,
+    hasLongDorsal: false,
+    hasWhiskers: false,
+    personalityBias: { curiosity: 0.9, boldness: 0.6, energy: 0.35, sociability: 0.3 },
+    price: 45,
+    names: ["Puff", "Spike", "Balloon", "Bloat", "Bubba", "Waddle", "Chubby", "Pudge"],
+    description: "Round and curious. Adorably grumpy face.",
+    tailSize: 0.6,
+    finOpacity: 0.7,
+    eyeSize: 1.4,
+  },
+};
+
+/** All species keys sorted by price for shop display */
+export const SPECIES_BY_PRICE: FishSpecies[] = (
+  Object.keys(SPECIES) as FishSpecies[]
+).sort((a, b) => SPECIES[a].price - SPECIES[b].price);
+
+/** Default species for starting fish */
+export const DEFAULT_SPECIES: FishSpecies = "goldfish";

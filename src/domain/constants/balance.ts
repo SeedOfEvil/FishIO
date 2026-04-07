@@ -13,10 +13,10 @@ export const CLEANLINESS_DECAY_PER_TICK = 100 / (8 * 60 * 60);
 export const FOOD_HUNGER_RESTORE = 25;
 
 /** How long a food pellet lasts in water (seconds) before dissolving */
-export const FOOD_PELLET_LIFETIME_S = 30;
+export const FOOD_PELLET_LIFETIME_S = 600;
 
 /** How fast food pellets sink (pixels per tick) */
-export const FOOD_SINK_SPEED = 0.3;
+export const FOOD_SINK_SPEED = 6;
 
 /** Starting gold for new game */
 export const STARTING_GOLD = 100;

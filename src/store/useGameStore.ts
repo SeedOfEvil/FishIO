@@ -2,8 +2,10 @@ import { create } from "zustand";
 import type { FishEntity, FoodPellet } from "@/domain/fish/fishTypes";
 import type { TankState } from "@/domain/tank/tankTypes";
 import type { Egg } from "@/domain/fish/fishBreeding";
+import type { FishSpecies } from "@/domain/fish/fishSpecies";
+import { SPECIES } from "@/domain/fish/fishSpecies";
 import { createFish, createFoodPellet } from "@/domain/fish/fishFactory";
-import { updateFishBehavior, canEatFood, advanceBehaviorTick } from "@/domain/fish/fishBehavior";
+import { updateFishBehavior, moveFish, canEatFood, advanceBehaviorTick } from "@/domain/fish/fishBehavior";
 import { tickFishNeeds, feedFish } from "@/domain/fish/fishNeeds";
 import { tickTankState, cleanSpot } from "@/domain/tank/tankRules";
 import { isNightTime } from "@/domain/tank/lighting";
@@ -34,10 +36,12 @@ export interface GameState {
 
   // Actions
   tick: () => void;
+  moveFrame: (dt: number) => void;
   dropFood: (x: number) => void;
   selectFish: (id: string | null) => void;
   cleanDirtySpot: (spotId: string) => void;
   setActivePanel: (panel: GameState["activePanel"]) => void;
+  buyFish: (species: FishSpecies) => void;
   initializeGame: () => void;
   loadState: (state: Partial<SaveableState>) => void;
   getSaveableState: () => SaveableState;
@@ -89,19 +93,18 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
+  // SLOW TICK (1/sec): behavior decisions, needs, economy, food aging
   tick: () => {
     const state = get();
     const hour = getCurrentHour();
     const minute = getCurrentMinute();
     const isNight = isNightTime(hour);
 
-    // Advance behavior tick for deterministic oscillations
     advanceBehaviorTick();
 
-    // Update tank
     let tank = tickTankState({ ...state.tank, isNight, currentHour: hour });
 
-    // Update food pellets (sink and age)
+    // Age and sink food pellets
     let foodPellets = state.foodPellets
       .map((p) => ({
         ...p,
@@ -110,19 +113,17 @@ export const useGameStore = create<GameState>((set, get) => ({
       }))
       .filter((p) => p.lifetime > 0);
 
-    // Update fish
+    // Update fish behavior decisions (state machine, wander angles, timers)
+    // Position/velocity is NOT updated here — that happens in moveFrame
     const updatedFish = state.fish.map((fish) => {
-      // Behavior (movement)
       let updated = updateFishBehavior(fish, {
         allFish: state.fish,
         foodPellets,
         isNight,
       });
 
-      // Needs (hunger, health, happiness)
       updated = tickFishNeeds(updated, tank.cleanliness);
 
-      // Check if fish can eat nearby food
       for (const pellet of foodPellets) {
         if (!pellet.claimed && canEatFood(updated, pellet)) {
           updated = feedFish(updated);
@@ -133,7 +134,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       return updated;
     });
 
-    // Remove claimed food
     foodPellets = foodPellets.filter((p) => !p.claimed);
 
     set({
@@ -143,6 +143,19 @@ export const useGameStore = create<GameState>((set, get) => ({
       currentHour: hour,
       currentMinute: minute,
     });
+  },
+
+  // FAST FRAME (~60fps): physics, steering, position updates
+  moveFrame: (dt: number) => {
+    const state = get();
+    if (state.fish.length === 0) return;
+
+    const isNight = state.tank.isNight;
+    const movedFish = state.fish.map((fish) =>
+      moveFish(fish, state.fish, state.foodPellets, isNight, dt),
+    );
+
+    set({ fish: movedFish });
   },
 
   dropFood: (x: number) => {
@@ -160,6 +173,17 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setActivePanel: (panel) => {
     set({ activePanel: panel });
+  },
+
+  buyFish: (species: FishSpecies) => {
+    const state = get();
+    const price = SPECIES[species].price;
+    if (state.gold < price) return;
+    const newFish = createFish({ species });
+    set({
+      fish: [...state.fish, newFish],
+      gold: state.gold - price,
+    });
   },
 
   loadState: (saved: Partial<SaveableState>) => {

@@ -1,3 +1,5 @@
+import type { FishSpecies } from "./fishSpecies";
+
 export type Sex = "male" | "female";
 export type AgeStage = "fry" | "juvenile" | "adult";
 export type FishState =
@@ -26,6 +28,7 @@ export interface PersonalityTraits {
 export interface FishEntity {
   id: string;
   name: string;
+  species: FishSpecies;
   sex: Sex;
   ageStage: AgeStage;
   /** Real timestamp when this fish was born/created */
@@ -58,6 +61,12 @@ export interface FishEntity {
 
   /** Current wander target angle in radians — drives smooth cruising direction */
   wanderAngle: number;
+
+  /** Per-fish random seed for oscillation phase offsets (0-1000) */
+  phaseSeed: number;
+
+  /** Per-fish internal tick counter — desynchronizes oscillations between fish */
+  localTick: number;
 
   /** Color hue for this fish (degrees, goldfish range) */
   colorHue: number;
